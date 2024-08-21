@@ -23,100 +23,142 @@ wait.Until(d => d.FindElement(By.XPath("//button[@type='submit']"))).Click();
 // Navigate to the jobs page
 driver.Navigate().GoToUrl("https://www.linkedin.com/jobs/collections/easy-apply");
 
-try
+//apply on the current job
+ApplyOnCurrentJob(driver, wait);
+
+
+static void ApplyOnCurrentJob(IWebDriver driver, WebDriverWait wait)
 {
-
-    // Wait for the Easy Apply button
-    IWebElement easyApplyButton = wait.Until(d =>
+    try
     {
-        var buttons = d.FindElements(By.XPath("//button[contains(@class, 'jobs-apply-button--top-card')]"));
-        if (buttons.Count > 0) return buttons[0];
+        // Wait for the Easy Apply button
+        IWebElement? easyApplyButton = wait.Until(d =>
+        {
+            var buttons = d.FindElements(By.XPath("//button[contains(@class, 'jobs-apply-button--top-card')]"));
+            if (buttons.Count > 0) return buttons[0];
 
-        buttons = d.FindElements(By.XPath("//button[contains(@class, 'jobs-apply-button')]"));
-        return buttons.Count > 0 ? buttons[0] : null;
-    });
+            while (buttons.Count == 0)
+            {
+                buttons = d.FindElements(By.XPath("//button[contains(@class, 'jobs-apply-button')]"));
 
-    if (easyApplyButton != null)
-    {
-        easyApplyButton.Click();
-        Console.WriteLine("Clicked Easy Apply button.");
+                if (buttons.Count == 0)
+                {
+                    FindNextJobtoApply(driver);
+                }
+
+            }
+
+            return buttons.Count > 0 ? buttons[0] : null;
+        });
+
+        if (easyApplyButton != null)
+        {
+            easyApplyButton.Click();
+            Console.WriteLine("Clicked Easy Apply button.");
+        }
+        else
+        {
+            Console.WriteLine("No Easy Apply button found.");
+        }
     }
-    else
+    catch (Exception ex)
     {
-        Console.WriteLine("No Easy Apply button found.");
+        Console.WriteLine($"An error occurred: {ex.Message}");
     }
 
-
-
-
-
-
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"An error occurred: {ex.Message}");
-}
-finally
-{
-    //driver.Quit();
-}
-
-
-
-
-
-// Dictionary for form data
-var formData = new Dictionary<string, string>
+    // Dictionary for form data
+    var formData = new Dictionary<string, string>
         {
             { "email", "your_email@example.com" },
             { "phone", "1234567890" },
             { "countryCode", "+92" }
         };
 
-IWebElement? reviewButton;
+    IWebElement? reviewButton;
+    IWebElement? nextButton;
 
-try{reviewButton = driver.FindElement(By.XPath("//button[@aria-label='Review your application']"));}
-catch (Exception){reviewButton = null;}
+    reviewButton = FindButtonByStrings(driver, ["Review your application"]);
+    nextButton = FindButtonByStrings(driver, ["Continue to next step"]);
 
-while (reviewButton == null)
-{
-    // Find and fill the email field
-    var emailField = FindElementByPartialAttribute(driver, new string[] { "email", "Email", "e-mail" });
-    if (emailField != null) emailField.SendKeys(formData["email"]);
+    while (reviewButton == null && nextButton != null)
+    {
+        // Find and fill the phone number field
+        var phoneField = FindEmptyInputFieldByStrings(driver, ["phone", "Phone", "tel"]);
+        if (phoneField != null) phoneField.SendKeys(formData["phone"]);
 
-    // Find and fill the phone number field
-    var phoneField = FindElementByPartialAttribute(driver, new string[] { "phone", "Phone", "tel" });
-    if (phoneField != null) phoneField.SendKeys(formData["phone"]);
+        nextButton.Click();
 
-    // Find and fill the country code field
-    var countryCodeField = FindElementByPartialAttribute(driver, new string[] { "country", "Country", "code" });
-    if (countryCodeField != null) countryCodeField.SendKeys(formData["countryCode"]);
+        reviewButton = FindButtonByStrings(driver, ["Review your application"]);
+    }
 
-    // Click the "Next" button
-    var nextButton = driver.FindElement(By.XPath("//button[@aria-label='Continue to next step']"));
-    if (nextButton != null) nextButton.Click();
+    if (reviewButton != null) reviewButton.Click();
 
-    reviewButton = driver.FindElement(By.XPath("//button[@aria-label='Review your application']"));
+    var submitButton = FindButtonByStrings(driver, ["Submit application"]);
+    if (submitButton != null) submitButton.Click();
 }
 
-if (reviewButton != null) reviewButton.Click();
-
-var submitButton = driver.FindElement(By.XPath("//button[@aria-label='Submit application']"));
-if (submitButton != null) submitButton.Click();
-
-
-static IWebElement FindElementByPartialAttribute(IWebDriver driver, string[] partialAttributeNames)
+static IWebElement? FindButtonByStrings(IWebDriver driver, string[] partialAttributeNames)
 {
     foreach (string partialName in partialAttributeNames)
     {
         try
         {
-            // Try finding element by name or id
-            IWebElement element = driver.FindElement(By.XPath($"//input[contains(@name, '{partialName}') or contains(@id, '{partialName}')]"));
+            IWebElement element = driver.FindElement(By.XPath($"//button[@aria-label='{partialName}']"));
+
             if (element != null)
+            {
                 return element;
+            }
         }
         catch (NoSuchElementException) { }
     }
     return null;
+}
+
+static IWebElement? FindEmptyInputFieldByStrings(IWebDriver driver, string[] partialAttributeNames)
+{
+    foreach (string partialName in partialAttributeNames)
+    {
+        try
+        {
+            IWebElement element = driver.FindElement(By.XPath($"//input[contains(@name, '{partialName}') or contains(@id, '{partialName}')]"));
+
+            if (element != null && string.IsNullOrEmpty(element.GetAttribute("value")))
+            {
+                return element;
+            }
+        }
+        catch (NoSuchElementException) { }
+    }
+
+    return null;
+}
+
+
+static void FindNextJobtoApply(IWebDriver driver)
+{
+    // Find all the job listings
+    var jobListings = driver.FindElements(By.CssSelector(".jobs-search-results__list-item"));
+
+    foreach (var jobListing in jobListings)
+    {
+        try
+        {
+            // Check if the job has already been applied to (by locating the 'Applied' text)
+            var appliedStatus = jobListing.FindElement(By.CssSelector(".job-card-container__footer-item.job-card-container__footer-job-state"));
+
+            if (appliedStatus.Text.Contains("Applied"))
+            {
+                Console.WriteLine("Already applied to this job. Skipping...");
+                continue;  // Skip this job and move to the next one
+            }
+        }
+        catch (NoSuchElementException ex)
+        {
+            // 'Applied' text not found, meaning you haven't applied to this job yet.
+            Console.WriteLine("Not applied to this job. Clicking...");
+            jobListing.Click();  // Click the job to view/apply
+            break;  // Stop once a non-applied job is found
+        }
+    }
 }
