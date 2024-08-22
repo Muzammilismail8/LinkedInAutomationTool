@@ -8,24 +8,33 @@ using WebDriverManager.DriverConfigs.Impl;
 Console.WriteLine("Starting LinkedIn Automation");
 
 new DriverManager().SetUpDriver(new ChromeConfig());
-IWebDriver driver = new ChromeDriver();
+var options = new ChromeOptions();
+
+//Its your computer Username
+string windowUserName = "Reacon";
+
+// Specify the path to your existing Chrome profile
+options.AddArgument(@$"user-data-dir=C:\Users\{windowUserName}\AppData\Local\Google\Chrome\User Data");
+
+// Optional: Specify which Chrome profile to use (default is "Default")
+options.AddArgument(@"profile-directory=Default");
+
+IWebDriver driver = new ChromeDriver(options);
 
 // Navigate to LinkedIn login page
-driver.Navigate().GoToUrl("https://www.linkedin.com/login");
+driver.Navigate().GoToUrl("https://www.linkedin.com/feed/");
 
 WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(20));
 
 // Login
-wait.Until(d => d.FindElement(By.Id("username"))).SendKeys("oliviagates16@gmail.com");
-wait.Until(d => d.FindElement(By.Id("password"))).SendKeys("fakeman039");
-wait.Until(d => d.FindElement(By.XPath("//button[@type='submit']"))).Click();
+//wait.Until(d => d.FindElement(By.Id("username"))).SendKeys("oliviagates16@gmail.com");
+//wait.Until(d => d.FindElement(By.XPath("//button[@type='submit']"))).Click();
 
 // Navigate to the jobs page
 driver.Navigate().GoToUrl("https://www.linkedin.com/jobs/collections/easy-apply");
 
 //apply on the current job
 ApplyOnCurrentJob(driver, wait);
-
 
 static void ApplyOnCurrentJob(IWebDriver driver, WebDriverWait wait)
 {
@@ -45,7 +54,6 @@ static void ApplyOnCurrentJob(IWebDriver driver, WebDriverWait wait)
                 {
                     FindNextJobtoApply(driver);
                 }
-
             }
 
             return buttons.Count > 0 ? buttons[0] : null;
