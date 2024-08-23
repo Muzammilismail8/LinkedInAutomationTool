@@ -1,172 +1,281 @@
-﻿// See https://aka.ms/new-console-template for more information
-using OpenQA.Selenium;
+﻿using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
+using System.Diagnostics;
 using WebDriverManager;
 using WebDriverManager.DriverConfigs.Impl;
 
 Console.WriteLine("Starting LinkedIn Automation");
 
-new DriverManager().SetUpDriver(new ChromeConfig());
-var options = new ChromeOptions();
+IWebDriver? driver = ConfigureAndRunCrome();
+if(driver == null) { throw new NotFoundException(); }
 
-//Its your computer Username
-string windowUserName = "Reacon";
-
-// Specify the path to your existing Chrome profile
-options.AddArgument(@$"user-data-dir=C:\Users\{windowUserName}\AppData\Local\Google\Chrome\User Data");
-
-// Optional: Specify which Chrome profile to use (default is "Default")
-options.AddArgument(@"profile-directory=Default");
-
-IWebDriver driver = new ChromeDriver(options);
-
-// Navigate to LinkedIn login page
-driver.Navigate().GoToUrl("https://www.linkedin.com/feed/");
-
-WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(20));
-
-// Login
-//wait.Until(d => d.FindElement(By.Id("username"))).SendKeys("oliviagates16@gmail.com");
-//wait.Until(d => d.FindElement(By.XPath("//button[@type='submit']"))).Click();
-
-// Navigate to the jobs page
 driver.Navigate().GoToUrl("https://www.linkedin.com/jobs/collections/easy-apply");
+Thread.Sleep(3000);
 
-//apply on the current job
-ApplyOnCurrentJob(driver, wait);
+while (true)
+{
+    ApplyOnCurrentJob(driver);
+}
 
-static void ApplyOnCurrentJob(IWebDriver driver, WebDriverWait wait)
+static void ApplyOnCurrentJob(IWebDriver driver)
 {
     try
     {
-        // Wait for the Easy Apply button
-        IWebElement? easyApplyButton = wait.Until(d =>
+        FindAndClickEasyApplyButton(driver);
+
+        Thread.Sleep(2000);
+        IWebElement? reviewButton;
+
+        IWebElement? nextButton;
+        IWebElement? IsErrorExist = null;
+
+        reviewButton = FindButtonByStrings(driver, ["Review your application"]);
+        nextButton = FindButtonByStrings(driver, ["Continue to next step"]);
+
+        while ((reviewButton == null || IsErrorExist != null) && nextButton != null)
         {
-            var buttons = d.FindElements(By.XPath("//button[contains(@class, 'jobs-apply-button--top-card')]"));
-            if (buttons.Count > 0) return buttons[0];
+            if(reviewButton == null) nextButton.Click();
 
-            while (buttons.Count == 0)
+            while (IsErrorExist != null)
             {
-                buttons = d.FindElements(By.XPath("//button[contains(@class, 'jobs-apply-button')]"));
-
-                if (buttons.Count == 0)
-                {
-                    FindNextJobtoApply(driver);
-                }
+                FillForm(driver);
+                IsErrorExist = GetDivByClass(driver, ["error", "preview__response--is-required"]);
             }
 
-            return buttons.Count > 0 ? buttons[0] : null;
-        });
+            reviewButton = FindButtonByStrings(driver, ["Review your application"]);
+            if (reviewButton != null) reviewButton.Click();
 
-        if (easyApplyButton != null)
-        {
-            easyApplyButton.Click();
-            Console.WriteLine("Clicked Easy Apply button.");
+            IsErrorExist = GetDivByClass(driver, ["error", "preview__response--is-required"]);
+            Thread.Sleep(2000);
         }
-        else
+
+        var submitButton = FindButtonByStrings(driver, ["Submit application"]);
+        if (submitButton != null) submitButton.Click();
+
+        Thread.Sleep(3000);
+        ColsetheApplicationSentModal(driver);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
+    }
+}
+
+static IWebElement? GetDivByClass(IWebDriver driver, string[] partialAttributeNames)
+{
+    try
+    {
+        foreach (string partialName in partialAttributeNames)
         {
-            Console.WriteLine("No Easy Apply button found.");
+            try
+            {
+                IWebElement element = driver.FindElement(By.XPath($"//div[contains(@class, '{partialName}')]"));
+
+                if (element != null)
+                {
+                    return element;
+                }
+            }
+            catch (NoSuchElementException ex)
+            { }
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"An error occurred: {ex.Message}");
+        Console.WriteLine(ex.Message);
     }
+    return null;
+}
 
-    // Dictionary for form data
-    var formData = new Dictionary<string, string>
-        {
-            { "email", "your_email@example.com" },
-            { "phone", "1234567890" },
-            { "countryCode", "+92" }
-        };
-
-    IWebElement? reviewButton;
-    IWebElement? nextButton;
-
-    reviewButton = FindButtonByStrings(driver, ["Review your application"]);
-    nextButton = FindButtonByStrings(driver, ["Continue to next step"]);
-
-    while (reviewButton == null && nextButton != null)
+static IWebDriver? ConfigureAndRunCrome()
+{
+    try
     {
-        // Find and fill the phone number field
-        var phoneField = FindEmptyInputFieldByStrings(driver, ["phone", "Phone", "tel"]);
-        if (phoneField != null) phoneField.SendKeys(formData["phone"]);
+        foreach (var process in Process.GetProcessesByName("chrome"))
+        {
+            process.Kill();
+            process.WaitForExit();
+        }
 
-        nextButton.Click();
+        new DriverManager().SetUpDriver(new ChromeConfig());
+        var options = new ChromeOptions();
 
-        reviewButton = FindButtonByStrings(driver, ["Review your application"]);
+        string windowUserName = "Reacon";
+
+        options.AddArgument(@$"user-data-dir=C:\Users\{windowUserName}\AppData\Local\Google\Chrome\User Data");
+        options.AddArgument(@"profile-directory=Default");
+
+        return new ChromeDriver(options);
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
+    }
+    return null;
+}
 
-    if (reviewButton != null) reviewButton.Click();
+static void FindAndClickEasyApplyButton(IWebDriver driver)
+{
+    try
+    {
+        IWebElement? easyApplyButton = null;
+        bool isJobListingExist = true;
 
-    var submitButton = FindButtonByStrings(driver, ["Submit application"]);
-    if (submitButton != null) submitButton.Click();
+        while (easyApplyButton == null && isJobListingExist)
+        {
+            easyApplyButton = FindButtonByStrings(driver, ["Easy Apply"]);
+
+            if (easyApplyButton == null)
+            {
+                isJobListingExist = FindNextJobtoApply(driver);
+            }
+        }
+
+        if (easyApplyButton != null) easyApplyButton.Click();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
+    }
+}
+
+static void ColsetheApplicationSentModal(IWebDriver driver)
+{
+    try
+    {
+        var waitForModal = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
+        waitForModal.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementIsVisible(By.CssSelector("div.artdeco-modal")));
+
+        IWebElement modal = driver.FindElement(By.CssSelector("div.artdeco-modal"));
+        IWebElement modalContent = modal.FindElement(By.CssSelector("div.artdeco-modal__content"));
+
+        if (modalContent.Text.Contains("Your application was sent"))
+        {
+            Console.WriteLine("Text found. Closing modal...");
+            IWebElement? dismissButton = FindButtonByStrings(driver, ["Dismiss"]);
+
+            if (dismissButton != null) dismissButton.Click();
+        }
+        else
+        {
+            Console.WriteLine("Colse button not found.");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
+    }
 }
 
 static IWebElement? FindButtonByStrings(IWebDriver driver, string[] partialAttributeNames)
 {
-    foreach (string partialName in partialAttributeNames)
+    try
     {
-        try
+        foreach (string partialName in partialAttributeNames)
         {
-            IWebElement element = driver.FindElement(By.XPath($"//button[@aria-label='{partialName}']"));
-
-            if (element != null)
+            try
             {
-                return element;
+                IWebElement element = driver.FindElement(By.XPath($"//button[contains(@aria-label, '{partialName}')]"));
+
+                if (element != null)
+                {
+                    return element;
+                }
+            }
+            catch (NoSuchElementException ex)
+            {
+                Console.WriteLine(ex.Message);
             }
         }
-        catch (NoSuchElementException) { }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
     }
     return null;
+}
+
+static void FillForm(IWebDriver driver)
+{
+    try
+    {
+        var formData = new Dictionary<string, string>
+        {
+            { "email", "oliviagates16@gmail.com" },
+            { "phone", "3347479687" },
+            { "countryCode", "+92" }
+        };
+
+        var phoneField = FindEmptyInputFieldByStrings(driver, ["phone", "Phone", "tel"]);
+        if (phoneField != null) phoneField.SendKeys(formData["phone"]);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
+    }
 }
 
 static IWebElement? FindEmptyInputFieldByStrings(IWebDriver driver, string[] partialAttributeNames)
 {
-    foreach (string partialName in partialAttributeNames)
+    try
     {
-        try
+        foreach (string partialName in partialAttributeNames)
         {
-            IWebElement element = driver.FindElement(By.XPath($"//input[contains(@name, '{partialName}') or contains(@id, '{partialName}')]"));
-
-            if (element != null && string.IsNullOrEmpty(element.GetAttribute("value")))
+            try
             {
-                return element;
+                IWebElement element = driver.FindElement(By.XPath($"//input[contains(@name, '{partialName}') or contains(@id, '{partialName}')]"));
+
+                if (element != null && string.IsNullOrEmpty(element.GetAttribute("value")))
+                {
+                    return element;
+                }
             }
+            catch (NoSuchElementException) { }
         }
-        catch (NoSuchElementException) { }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
+        throw;
     }
 
     return null;
 }
 
-
-static void FindNextJobtoApply(IWebDriver driver)
+static bool FindNextJobtoApply(IWebDriver driver)
 {
-    // Find all the job listings
-    var jobListings = driver.FindElements(By.CssSelector(".jobs-search-results__list-item"));
-
-    foreach (var jobListing in jobListings)
+    try
     {
-        try
-        {
-            // Check if the job has already been applied to (by locating the 'Applied' text)
-            var appliedStatus = jobListing.FindElement(By.CssSelector(".job-card-container__footer-item.job-card-container__footer-job-state"));
+        var jobListings = driver.FindElements(By.CssSelector(".jobs-search-results__list-item"));
 
-            if (appliedStatus.Text.Contains("Applied"))
+        foreach (var jobListing in jobListings)
+        {
+            try
             {
-                Console.WriteLine("Already applied to this job. Skipping...");
-                continue;  // Skip this job and move to the next one
+                var appliedStatus = jobListing.FindElement(By.CssSelector(".job-card-container__footer-item.job-card-container__footer-job-state"));
+
+                if (appliedStatus.Text.Contains("Applied"))
+                {
+                    Console.WriteLine("Already applied to this job. Skipping...");
+                    continue;
+                }
+            }
+            catch (NoSuchElementException ex)
+            {
+                Console.WriteLine(ex.Message);
+                jobListing.Click();
+                break;
             }
         }
-        catch (NoSuchElementException ex)
-        {
-            // 'Applied' text not found, meaning you haven't applied to this job yet.
-            Console.WriteLine("Not applied to this job. Clicking...");
-            jobListing.Click();  // Click the job to view/apply
-            break;  // Stop once a non-applied job is found
-        }
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
+        return false;
+    }
+
+    return true;
 }
+
+//driver.Dispose();
