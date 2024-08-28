@@ -249,22 +249,37 @@ static bool FindNextJobtoApply(IWebDriver driver)
     {
         var jobListings = driver.FindElements(By.CssSelector(".jobs-search-results__list-item"));
 
-        foreach (var jobListing in jobListings)
+        for (int i = 0; i < jobListings.Count; i++)
         {
+            var currentJob = jobListings[i];
+
             try
             {
-                var appliedStatus = jobListing.FindElement(By.CssSelector(".job-card-container__footer-item.job-card-container__footer-job-state"));
+                var appliedStatus = currentJob.FindElement(By.CssSelector(".job-card-container__footer-item.job-card-container__footer-job-state"));
 
-                if (appliedStatus.Text.Contains("Applied"))
+                if (appliedStatus != null && appliedStatus.Text.Contains("Applied"))
                 {
                     Console.WriteLine("Already applied to this job. Skipping...");
+                    
+                    if (i == jobListings.Count - 1)
+                    {
+                        var nextPageButton = FindButtonByStrings(driver, new[] { "View next page" });
+                        if (nextPageButton != null) nextPageButton.Click();
+                    }
+
                     continue;
                 }
+                else
+                {
+                    currentJob.Click();
+                    break;
+                }
+               
             }
             catch (NoSuchElementException ex)
             {
                 Console.WriteLine(ex.Message);
-                jobListing.Click();
+                currentJob.Click();
                 break;
             }
         }
