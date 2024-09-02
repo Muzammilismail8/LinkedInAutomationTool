@@ -60,11 +60,30 @@ public static class JobHandler
 
                 try
                 {
-                    var appliedStatus = currentJob.FindElement(By.CssSelector(".job-card-container__footer-item.job-card-container__footer-job-state"));
+                    IWebElement? appliedStatus = currentJob.FindElement(By.XPath($".//li[contains(@class, 'job-card-container__footer-item')]"));
 
-                    if (appliedStatus != null && appliedStatus.Text.Contains("Applied"))
+                    IWebElement? jobTitleElement = currentJob.FindElement(By.XPath(".//a[contains(@class, 'job-card-list__title')]//strong"));
+
+                    var jobTitle = jobTitleElement.Text;
+
+                    if (appliedStatus != null)
                     {
-                        Console.WriteLine("Already applied to this job. Skipping...");
+                        var text = appliedStatus.Text;
+
+                        if (appliedStatus.Text.Contains("Applied"))
+                        {
+                            Console.WriteLine("Already applied to this job. Skipping...");
+                        }
+                        else
+                        {
+                            bool isJobSuitable = IsJobSuitable(driver, [".net", "c#", "asp.net"], ["react", "nestjs", "nextjs"]);
+
+                            if (isJobSuitable)
+                            {
+                                currentJob.Click();
+                                break;
+                            }
+                        }
 
                         if (i == jobListings.Count - 1)
                         {
@@ -72,31 +91,101 @@ public static class JobHandler
                             if (nextPageButton != null) nextPageButton.Click();
                         }
 
+                        JobClose(currentJob);
+                        Thread.Sleep(3000);
+
                         continue;
-                    }
-                    else
-                    {
-                        currentJob.Click();
-                        break;
                     }
 
                 }
                 catch (NoSuchElementException ex)
                 {
                     Console.WriteLine(ex.Message);
-                    currentJob.Click();
-                    break;
+                    Thread.Sleep(10000);
                 }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex.Message);
+            Thread.Sleep(10000);
+
             return false;
         }
 
         return true;
     }
+
+    public static void JobClose(IWebElement? currentJob)
+    {
+        try
+        {
+            var colseButton = currentJob!.FindElement(By.XPath($".//button[contains(@aria-label, 'Dismiss')]"));
+            if (colseButton != null) colseButton.Click();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error: " + ex.Message);
+        }
+    }
+
+    public static bool IsJobSuitable(IWebDriver driver, List<string> requiredSkills, List<string> notRequiredSkills)
+    {
+        try
+        {
+            var jobDescriptionSection = driver.FindElement(By.XPath("//*[contains(@class, 'jobs-description-content')]"));
+            string jobDescription = jobDescriptionSection.Text.ToLower();
+
+            int totalRequiredSkills = requiredSkills.Count;
+            int foundRequiredSkills = 0;
+
+            foreach (var skill in requiredSkills)
+            {
+                if (jobDescription.Contains(skill, StringComparison.OrdinalIgnoreCase))
+                {
+                    foundRequiredSkills++;
+                }
+            }
+
+            double requiredSkillsPercentage = (double)foundRequiredSkills / totalRequiredSkills;
+
+            bool containsNotRequiredSkills = notRequiredSkills.Any(skill => jobDescription.Contains(skill, StringComparison.OrdinalIgnoreCase));
+
+            if (requiredSkillsPercentage >= 0.5 && !containsNotRequiredSkills)
+            {
+                return true;
+            }
+            else
+            {
+                if (requiredSkillsPercentage < 0.5)
+                {
+                    Console.WriteLine("The job description does not contain at least 70% of the required skills.");
+                }
+
+                if (containsNotRequiredSkills)
+                {
+                    Console.WriteLine("The job description contains one or more not required skills.");
+                }
+
+                return false;
+            }
+        }
+        catch (NoSuchElementException ex)
+        {
+            Thread.Sleep(1000000);
+            Console.WriteLine($"Element not found: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred: {ex.Message}");
+            return false;
+        }
+    }
+
+
+
+
     public static void ColsetheApplicationSentModal(IWebDriver driver)
     {
         try

@@ -7,10 +7,11 @@ IWebDriver driver = EnviornmentHandler.ConfigureAndRunCrome()!;
 driver.Navigate().GoToUrl("https://www.linkedin.com/jobs/collections/easy-apply");
 Thread.Sleep(3000);
 
+JobHandler.FindNextJobtoApply(driver);
+
 while (true)
 {
     JobHandler.ApplyOnCurrentJob(driver);
 }
-
 
 //driver.Dispose();
