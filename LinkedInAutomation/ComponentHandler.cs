@@ -8,12 +8,25 @@ public static class ComponentHandler
     {
         try
         {
+            JobHandler.FindNextJobtoApply(driver);
             IWebElement? easyApplyButton = null;
+
             bool isJobListingExist = true;
 
             while (easyApplyButton == null && isJobListingExist)
             {
-                easyApplyButton = FindButtonByStrings(driver, ["Easy Apply"]);
+                var jobDetails = driver.FindElement(By.XPath($"//div[contains(@class, 'job-details')]"));
+
+                try
+                {
+                    easyApplyButton = jobDetails.FindElement(By.XPath($".//button[contains(@aria-label, 'Easy Apply')]"));
+                }
+                catch (Exception)
+                {
+                    easyApplyButton = null;
+                }
+
+                //easyApplyButton = FindButtonByStrings(driver, ["Easy Apply"]);
 
                 if (easyApplyButton == null)
                 {
@@ -25,7 +38,7 @@ public static class ComponentHandler
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            Console.WriteLine("Easy Apply not fount...");
         }
     }
 
