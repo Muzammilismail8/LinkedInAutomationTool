@@ -85,6 +85,7 @@ public static class JobHandler
                             {
                                 break;
                             }
+                            JobClose(currentJob);
                         }
 
                         if (i == jobListings.Count - 1)
@@ -92,7 +93,7 @@ public static class JobHandler
                             var nextPageButton = ComponentHandler.FindButtonByStrings(driver, new[] { "View next page" });
                             if (nextPageButton != null) nextPageButton.Click();
                         }
-                        JobClose(currentJob);
+                        
                         Thread.Sleep(1000);
 
                         continue;
